@@ -1,0 +1,12 @@
+/home/runner/work/UMLMM/UMLMM/src/UMLMM.Infrastructure/bin/Debug/net9.0/UMLMM.Infrastructure.deps.json
+/home/runner/work/UMLMM/UMLMM/src/UMLMM.Infrastructure/bin/Debug/net9.0/UMLMM.Infrastructure.dll
+/home/runner/work/UMLMM/UMLMM/src/UMLMM.Infrastructure/bin/Debug/net9.0/UMLMM.Infrastructure.pdb
+/home/runner/work/UMLMM/UMLMM/src/UMLMM.Infrastructure/obj/Debug/net9.0/UMLMM.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
+/home/runner/work/UMLMM/UMLMM/src/UMLMM.Infrastructure/obj/Debug/net9.0/UMLMM.Infrastructure.AssemblyInfoInputs.cache
+/home/runner/work/UMLMM/UMLMM/src/UMLMM.Infrastructure/obj/Debug/net9.0/UMLMM.Infrastructure.AssemblyInfo.cs
+/home/runner/work/UMLMM/UMLMM/src/UMLMM.Infrastructure/obj/Debug/net9.0/UMLMM.Infrastructure.csproj.CoreCompileInputs.cache
+/home/runner/work/UMLMM/UMLMM/src/UMLMM.Infrastructure/obj/Debug/net9.0/UMLMM.Infrastructure.sourcelink.json
+/home/runner/work/UMLMM/UMLMM/src/UMLMM.Infrastructure/obj/Debug/net9.0/UMLMM.Infrastructure.dll
+/home/runner/work/UMLMM/UMLMM/src/UMLMM.Infrastructure/obj/Debug/net9.0/refint/UMLMM.Infrastructure.dll
+/home/runner/work/UMLMM/UMLMM/src/UMLMM.Infrastructure/obj/Debug/net9.0/UMLMM.Infrastructure.pdb
+/home/runner/work/UMLMM/UMLMM/src/UMLMM.Infrastructure/obj/Debug/net9.0/ref/UMLMM.Infrastructure.dll
