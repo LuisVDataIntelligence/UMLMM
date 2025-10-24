@@ -1,0 +1,30 @@
+{
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "properties": {
+        "image": "input.png"
+      }
+    },
+    {
+      "id": 2,
+      "type": "Upscale",
+      "properties": {
+        "scale": 2,
+        "method": "lanczos"
+      }
+    },
+    {
+      "id": 3,
+      "type": "SaveImage",
+      "properties": {
+        "filename": "output.png"
+      }
+    }
+  ],
+  "links": [
+    [1, 1, 0, 2, 0, "IMAGE"],
+    [2, 2, 0, 3, 0, "IMAGE"]
+  ]
+}
