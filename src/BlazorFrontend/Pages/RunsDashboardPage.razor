@@ -1,0 +1,276 @@
+@page "/runs"
+@using Contracts.DTOs
+@using BlazorFrontend.Services
+@using BlazorFrontend.Components.Shared
+@inject IApiClient ApiClient
+
+<PageTitle>Runs Dashboard - UMLMM</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Runs Dashboard</h1>
+    <button class="btn btn-primary" @onclick="RefreshAsync" disabled="@loading">
+        @if (loading)
+        {
+            <span class="spinner-border spinner-border-sm me-2"></span>
+        }
+        <span class="bi bi-arrow-clockwise"></span> Refresh
+    </button>
+</div>
+
+@if (loading && runsResult == null)
+{
+    <LoadingSpinner Message="Loading runs..." />
+}
+else if (error != null)
+{
+    <ErrorDisplay Message="@error" OnRetry="LoadRunsAsync" />
+}
+else if (runsResult != null)
+{
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <h5 class="card-title">Total Runs</h5>
+                    <h2 class="card-text">@runsResult.TotalCount</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <h5 class="card-title">Running</h5>
+                    <h2 class="card-text">@runsResult.Items.Count(r => r.Status == RunStatus.Running)</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h5 class="card-title">Completed</h5>
+                    <h2 class="card-text">@runsResult.Items.Count(r => r.Status == RunStatus.Completed)</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-danger">
+                <div class="card-body">
+                    <h5 class="card-title">Failed</h5>
+                    <h2 class="card-text">@runsResult.Items.Count(r => r.Status == RunStatus.Failed)</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (runsResult.Items.Any())
+    {
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Recent Runs</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Source</th>
+                                <th>Status</th>
+                                <th>Started</th>
+                                <th>Duration</th>
+                                <th>Records</th>
+                                <th>Created</th>
+                                <th>Updated</th>
+                                <th>Errors</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var run in runsResult.Items)
+                            {
+                                <tr>
+                                    <td>@run.Id</td>
+                                    <td>
+                                        <span class="badge bg-secondary">@run.Source</span>
+                                    </td>
+                                    <td>
+                                        @switch (run.Status)
+                                        {
+                                            case RunStatus.Queued:
+                                                <span class="badge bg-secondary">
+                                                    <span class="bi bi-hourglass"></span> Queued
+                                                </span>
+                                                break;
+                                            case RunStatus.Running:
+                                                <span class="badge bg-info">
+                                                    <span class="spinner-border spinner-border-sm me-1"></span> Running
+                                                </span>
+                                                break;
+                                            case RunStatus.Completed:
+                                                <span class="badge bg-success">
+                                                    <span class="bi bi-check-circle"></span> Completed
+                                                </span>
+                                                break;
+                                            case RunStatus.Failed:
+                                                <span class="badge bg-danger">
+                                                    <span class="bi bi-exclamation-circle"></span> Failed
+                                                </span>
+                                                break;
+                                            case RunStatus.Cancelled:
+                                                <span class="badge bg-warning">
+                                                    <span class="bi bi-x-circle"></span> Cancelled
+                                                </span>
+                                                break;
+                                        }
+                                    </td>
+                                    <td>
+                                        <small>@run.StartedAt.ToString("MMM dd, HH:mm")</small>
+                                    </td>
+                                    <td>
+                                        @if (run.DurationSeconds.HasValue)
+                                        {
+                                            <span>@FormatDuration(run.DurationSeconds.Value)</span>
+                                        }
+                                        else if (run.Status == RunStatus.Running)
+                                        {
+                                            <span class="text-muted">@FormatDuration((DateTime.UtcNow - run.StartedAt).TotalSeconds)</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td>@run.RecordsProcessed</td>
+                                    <td>
+                                        <span class="text-success">@run.RecordsCreated</span>
+                                    </td>
+                                    <td>
+                                        <span class="text-info">@run.RecordsUpdated</span>
+                                    </td>
+                                    <td>
+                                        @if (run.ErrorCount > 0)
+                                        {
+                                            <span class="text-danger">@run.ErrorCount</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">0</span>
+                                        }
+                                    </td>
+                                </tr>
+                                @if (run.Status == RunStatus.Failed && !string.IsNullOrWhiteSpace(run.ErrorMessage))
+                                {
+                                    <tr>
+                                        <td colspan="9" class="bg-light">
+                                            <small class="text-danger">
+                                                <strong>Error:</strong> @run.ErrorMessage
+                                            </small>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        @if (runsResult.TotalPages > 1)
+        {
+            <nav aria-label="Page navigation" class="mt-3">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item @(!runsResult.HasPreviousPage ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => GoToPage(runsResult.PageNumber - 1)" disabled="@(!runsResult.HasPreviousPage)">
+                            Previous
+                        </button>
+                    </li>
+                    
+                    @for (int i = Math.Max(1, runsResult.PageNumber - 2); i <= Math.Min(runsResult.TotalPages, runsResult.PageNumber + 2); i++)
+                    {
+                        var pageNum = i;
+                        <li class="page-item @(pageNum == runsResult.PageNumber ? "active" : "")">
+                            <button class="page-link" @onclick="() => GoToPage(pageNum)">@pageNum</button>
+                        </li>
+                    }
+                    
+                    <li class="page-item @(!runsResult.HasNextPage ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => GoToPage(runsResult.PageNumber + 1)" disabled="@(!runsResult.HasNextPage)">
+                            Next
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        }
+    }
+    else
+    {
+        <div class="alert alert-info">
+            <p class="mb-0">No runs found.</p>
+        </div>
+    }
+}
+
+@code {
+    private bool loading = true;
+    private string? error;
+    private PagedResultDto<RunDto>? runsResult;
+    private int currentPage = 1;
+    private const int pageSize = 20;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRunsAsync();
+    }
+
+    private async Task LoadRunsAsync()
+    {
+        loading = true;
+        error = null;
+        StateHasChanged();
+
+        try
+        {
+            runsResult = await ApiClient.GetRunsAsync(currentPage, pageSize);
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load runs: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        await LoadRunsAsync();
+    }
+
+    private async Task GoToPage(int pageNumber)
+    {
+        if (pageNumber < 1 || (runsResult != null && pageNumber > runsResult.TotalPages))
+            return;
+
+        currentPage = pageNumber;
+        await LoadRunsAsync();
+    }
+
+    private static string FormatDuration(double seconds)
+    {
+        if (seconds < 60)
+            return $"{seconds:F0}s";
+        
+        var minutes = (int)(seconds / 60);
+        var remainingSeconds = (int)(seconds % 60);
+        
+        if (minutes < 60)
+            return $"{minutes}m {remainingSeconds}s";
+        
+        var hours = minutes / 60;
+        var remainingMinutes = minutes % 60;
+        return $"{hours}h {remainingMinutes}m";
+    }
+}

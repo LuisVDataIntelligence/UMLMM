@@ -1,0 +1,217 @@
+@page "/search"
+@using Contracts.DTOs
+@using BlazorFrontend.Services
+@using BlazorFrontend.Components.Shared
+@inject IApiClient ApiClient
+@inject NavigationManager Navigation
+
+<PageTitle>Search Models - UMLMM</PageTitle>
+
+<h1>Search Models</h1>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Search Filters</h5>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Text Search</label>
+                        <input type="text" class="form-control" @bind="searchRequest.Query" placeholder="Search by name or description..." />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Source</label>
+                        <select class="form-select" @bind="searchRequest.Source">
+                            <option value="">All Sources</option>
+                            <option value="CivitAI">CivitAI</option>
+                            <option value="Danbooru">Danbooru</option>
+                            <option value="e621">e621</option>
+                            <option value="ComfyUI">ComfyUI</option>
+                            <option value="Ollama">Ollama</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Minimum Rating</label>
+                        <select class="form-select" @bind="minRatingString">
+                            <option value="">Any Rating</option>
+                            <option value="4.0">4.0+</option>
+                            <option value="4.5">4.5+</option>
+                            <option value="4.8">4.8+</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row g-3 mt-2">
+                    <div class="col-md-12">
+                        <button class="btn btn-primary" @onclick="SearchAsync">
+                            <span class="bi bi-search"></span> Search
+                        </button>
+                        <button class="btn btn-secondary ms-2" @onclick="ClearFilters">
+                            <span class="bi bi-x-circle"></span> Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (loading)
+{
+    <LoadingSpinner Message="Searching models..." />
+}
+else if (error != null)
+{
+    <ErrorDisplay Message="@error" OnRetry="SearchAsync" />
+}
+else if (searchResult != null)
+{
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <p class="text-muted">
+                Found @searchResult.TotalCount model(s). 
+                Showing page @searchResult.PageNumber of @searchResult.TotalPages.
+            </p>
+        </div>
+    </div>
+
+    @if (searchResult.Items.Any())
+    {
+        <div class="row">
+            @foreach (var model in searchResult.Items)
+            {
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100">
+                        @if (model.Images.Any())
+                        {
+                            <img src="@model.Images.First().Url" class="card-img-top" alt="@model.Name" style="height: 200px; object-fit: cover;" />
+                        }
+                        <div class="card-body">
+                            <h5 class="card-title">@model.Name</h5>
+                            <p class="card-text">
+                                <small class="text-muted">
+                                    Source: @model.Source
+                                    @if (model.Rating.HasValue)
+                                    {
+                                        <span class="ms-2">★ @model.Rating.Value.ToString("F1")</span>
+                                    }
+                                </small>
+                            </p>
+                            <p class="card-text">@(model.Description?.Length > 100 ? model.Description.Substring(0, 100) + "..." : model.Description)</p>
+                            @if (model.Tags.Any())
+                            {
+                                <div class="mb-2">
+                                    @foreach (var tag in model.Tags.Take(3))
+                                    {
+                                        <span class="badge bg-secondary me-1">@tag</span>
+                                    }
+                                    @if (model.Tags.Count > 3)
+                                    {
+                                        <span class="badge bg-light text-dark">+@(model.Tags.Count - 3) more</span>
+                                    }
+                                </div>
+                            }
+                            <a href="/model/@model.Id" class="btn btn-sm btn-primary">View Details</a>
+                        </div>
+                        <div class="card-footer">
+                            <small class="text-muted">
+                                @if (model.DownloadCount.HasValue)
+                                {
+                                    <span>@model.DownloadCount.Value downloads</span>
+                                }
+                                <span class="float-end">@model.UpdatedAt.ToString("MMM dd, yyyy")</span>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Pagination -->
+        @if (searchResult.TotalPages > 1)
+        {
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item @(!searchResult.HasPreviousPage ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => GoToPage(searchResult.PageNumber - 1)" disabled="@(!searchResult.HasPreviousPage)">
+                            Previous
+                        </button>
+                    </li>
+                    
+                    @for (int i = Math.Max(1, searchResult.PageNumber - 2); i <= Math.Min(searchResult.TotalPages, searchResult.PageNumber + 2); i++)
+                    {
+                        var pageNum = i;
+                        <li class="page-item @(pageNum == searchResult.PageNumber ? "active" : "")">
+                            <button class="page-link" @onclick="() => GoToPage(pageNum)">@pageNum</button>
+                        </li>
+                    }
+                    
+                    <li class="page-item @(!searchResult.HasNextPage ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => GoToPage(searchResult.PageNumber + 1)" disabled="@(!searchResult.HasNextPage)">
+                            Next
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        }
+    }
+    else
+    {
+        <div class="alert alert-info">
+            <p class="mb-0">No models found matching your search criteria. Try adjusting your filters.</p>
+        </div>
+    }
+}
+
+@code {
+    private bool loading = true;
+    private string? error;
+    private PagedResultDto<ModelDto>? searchResult;
+    private SearchRequestDto searchRequest = new();
+    private string minRatingString = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await SearchAsync();
+    }
+
+    private async Task SearchAsync()
+    {
+        loading = true;
+        error = null;
+        StateHasChanged();
+
+        try
+        {
+            // Parse min rating
+            searchRequest.MinRating = !string.IsNullOrWhiteSpace(minRatingString) && double.TryParse(minRatingString, out var rating)
+                ? rating
+                : null;
+
+            searchResult = await ApiClient.SearchModelsAsync(searchRequest);
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to search models: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ClearFilters()
+    {
+        searchRequest = new SearchRequestDto { PageNumber = 1, PageSize = 20 };
+        minRatingString = "";
+    }
+
+    private async Task GoToPage(int pageNumber)
+    {
+        if (pageNumber < 1 || (searchResult != null && pageNumber > searchResult.TotalPages))
+            return;
+
+        searchRequest.PageNumber = pageNumber;
+        await SearchAsync();
+    }
+}
