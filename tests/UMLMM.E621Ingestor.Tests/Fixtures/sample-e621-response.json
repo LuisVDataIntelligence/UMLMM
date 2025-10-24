@@ -1,0 +1,36 @@
+{
+  "posts": [
+    {
+      "id": 12345,
+      "description": "A sample test post",
+      "created_at": "2024-01-01T10:00:00.000Z",
+      "rating": "s",
+      "tags": {
+        "general": ["anthro", "fur", "digital_media"],
+        "species": ["canine", "wolf"],
+        "character": ["test_character"],
+        "copyright": ["test_series"],
+        "artist": ["test_artist"],
+        "invalid": [],
+        "lore": [],
+        "meta": ["high_res"]
+      },
+      "file": {
+        "width": 1920,
+        "height": 1080,
+        "ext": "jpg",
+        "size": 234567,
+        "md5": "abc123def456",
+        "url": "https://static1.e621.net/data/sample.jpg"
+      },
+      "preview": {
+        "url": "https://static1.e621.net/data/preview/sample.jpg"
+      },
+      "sample": {
+        "url": "https://static1.e621.net/data/sample/sample.jpg",
+        "width": 800,
+        "height": 600
+      }
+    }
+  ]
+}
