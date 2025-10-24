@@ -1,0 +1,73 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  format:
+    name: Format Check
+    runs-on: ubuntu-latest
+
+    steps:
+        - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: |
+          if [ -f "*.sln" ] || find . -name "*.csproj" -type f | grep -q .; then
+            dotnet restore
+          else
+            echo "No .NET solution or projects found, skipping restore"
+          fi
+
+      - name: Check formatting
+        run: |
+          if [ -f "*.sln" ] || find . -name "*.csproj" -type f | grep -q .; then
+            dotnet format --verify-no-changes --verbosity diagnostic
+          else
+            echo "No .NET solution or projects found, skipping format check"
+          fi
+
+  analyze:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+        - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: |
+          if [ -f "*.sln" ] || find . -name "*.csproj" -type f | grep -q .; then
+            dotnet restore
+          else
+            echo "No .NET solution or projects found, skipping restore"
+          fi
+
+      - name: Build with analyzers
+        run: |
+          if [ -f "*.sln" ] || find . -name "*.csproj" -type f | grep -q .; then
+            dotnet build --configuration Release --no-restore \
+              /p:TreatWarningsAsErrors=false
+          else
+            echo "No .NET solution or projects found, skipping build"
+          fi

@@ -1,0 +1,74 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better analysis
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: |
+          if [ -f "*.sln" ] || find . -name "*.csproj" -type f | grep -q .; then
+            dotnet restore
+          else
+            echo "No .NET solution or projects found, skipping restore"
+          fi
+
+      - name: Build
+        run: |
+          if [ -f "*.sln" ] || find . -name "*.csproj" -type f | grep -q .; then
+            dotnet build --configuration Release --no-restore
+          else
+            echo "No .NET solution or projects found, skipping build"
+          fi
+
+      - name: Test
+        run: |
+          if find . -name "*Tests.csproj" -o -name "*.Tests.csproj" -o -name "*Test.csproj" | grep -q .; then
+            dotnet test --configuration Release --no-build --verbosity normal \
+              --collect:"XPlat Code Coverage" --results-directory ./coverage
+          else
+            echo "No test projects found, skipping tests"
+          fi
+
+      - name: Upload coverage reports
+        if: success() && hashFiles('coverage/**/*.xml') != ''
+        uses: codecov/codecov-action@v4
+        with:
+          directory: ./coverage
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+        continue-on-error: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            **/TestResults/**/*
+            coverage/**/*
+          retention-days: 30
+        continue-on-error: true
