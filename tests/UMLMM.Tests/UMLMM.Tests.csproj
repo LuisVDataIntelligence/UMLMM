@@ -18,4 +18,10 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\UMLMM.Core\UMLMM.Core.csproj" />
+    <ProjectReference Include="..\..\src\UMLMM.Infrastructure\UMLMM.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\OllamaIngestor\OllamaIngestor.csproj" />
+  </ItemGroup>
+
 </Project>
