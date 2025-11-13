@@ -2,17 +2,15 @@ namespace UMLMM.Domain.Entities;
 
 public class FetchRun
 {
-    public int Id { get; set; }
-    public int SourceId { get; set; }
-    public DateTime StartedAt { get; set; } = DateTime.UtcNow;
+    public Guid Id { get; set; }
+    public string RunId { get; set; } = default!;
+    public string SourceId { get; set; } = default!;
+    public DateTime StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
-    public string Status { get; set; } = "running";
-    public int RecordsCreated { get; set; }
-    public int RecordsUpdated { get; set; }
-    public int RecordsNoOp { get; set; }
-    public int RecordsError { get; set; }
-    public string? Cursor { get; set; }
-    public string? ErrorMessage { get; set; }
-
-    public Source Source { get; set; } = null!;
+    public int CreatedCount { get; set; }
+    public int UpdatedCount { get; set; }
+    public int NoOpCount { get; set; }
+    public int ErrorCount { get; set; }
+    public string? Parameters { get; set; } // JSONB for query params
+    public string? ErrorDetails { get; set; }
 }

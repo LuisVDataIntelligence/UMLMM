@@ -1,207 +1,174 @@
 # UMLMM
 
-Unified Model/Media Metadata — A system for ingesting, managing, and querying metadata from multiple AI model and media sources (CivitAI, Danbooru, e621, ComfyUI, Ollama) into a centralized PostgreSQL database.
+Unified Model/Media Metadata — ingestion (CivitAI, Danbooru, e621, ComfyUI, Ollama), centralized PostgreSQL, orchestration, and Blazor Server admin UI.
 
 ## Overview
 
-UMLMM provides:
+UMLMM is a centralized metadata management system that ingests, normalizes, and stores metadata from multiple sources including:
 
-- **Multi-source ingestion**: Fetch models, versions, files, images, and tags from external APIs
-- **Centralized storage**: PostgreSQL database with normalized schema
-- **Idempotent operations**: Upserts using natural keys (source_id, external_id) and content hashes
-- **Resilient HTTP**: Polly policies for retry, timeout, and circuit breaking
-- **Structured logging**: Serilog with console and file sinks
-- **Resume capability**: Cursor-based pagination with run tracking
+- **Danbooru**: Anime image board with extensive tagging
+- **e621**: Furry art repository (planned)
+- **CivitAI**: AI model and checkpoint repository (planned)
+- **ComfyUI**: Workflow metadata (planned)
+- **Ollama**: LLM model metadata (planned)
 
-## Architecture
+## Features
 
-The solution is organized into three main layers:
+### Phase 4 - Danbooru Ingestor (✅ Completed)
 
-### Domain Layer (`UMLMM.Domain`)
-Contains core business entities:
-- `Source` - External data sources (CivitAI, etc.)
-- `Model` - AI models with metadata
-- `ModelVersion` - Versions of models
-- `Artifact` - Files (safetensors, checkpoints, etc.)
-- `Image` - Preview images
-- `Tag` - Normalized tags (lowercase kebab-case)
-- `FetchRun` - Ingestion run tracking with statistics
+- **Resilient API Client**: Built with Polly for retry, circuit breaker, and timeout policies
+- **Idempotent Upserts**: No duplicates on re-runs, tracked by (source_id, external_id)
+- **Comprehensive Mapping**: Extracts posts, tags (with categories), ratings, and metadata
+- **Statistical Tracking**: Each run records created/updated/no-op/error counts with timing
+- **Structured Logging**: Serilog with enrichment for runId and source
+- **Full Test Coverage**: Unit tests for mapping, integration tests for database operations
 
-### Infrastructure Layer (`UMLMM.Infrastructure`)
-Provides data access and persistence:
-- EF Core `DbContext` with Postgres provider
-- Database migrations
-- Snake_case column naming convention
-- Indexes on natural keys and content hashes
-- JSONB columns for raw API responses
+## Project Structure
 
-### Ingestor Layer (`UMLMM.Ingestors.CivitAI`)
-Orchestrates data fetching and mapping:
-- CivitAI API client with resilience policies
-- DTO to entity mapping
-- Idempotent upsert logic
-- Tag normalization
-- Structured logging and metrics
+```
+UMLMM/
+├── src/
+│   ├── UMLMM.Domain/              # Domain entities (Image, Tag, FetchRun)
+│   ├── UMLMM.Infrastructure/       # EF Core DbContext and data access
+│   └── UMLMM.DanbooruIngestor/    # Danbooru worker service
+├── tests/
+│   ├── UMLMM.DanbooruIngestor.Tests/          # Unit tests
+│   └── UMLMM.Infrastructure.IntegrationTests/  # Integration tests with Testcontainers
+└── docs/
+    ├── phase-04-danbooru-ingestor.md          # Detailed implementation docs
+    └── AGENT-INSTRUCTIONS.md                   # Development guidelines
+```
 
-## Getting Started
+## Quick Start
 
 ### Prerequisites
 
-- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
-- PostgreSQL 16+ (or Docker for local development)
-- Docker (for running integration tests)
+- .NET 9 SDK
+- PostgreSQL 16+ (or Docker)
+- Docker (for integration tests)
 
-### Database Setup
+### Setup
 
-1. **Start PostgreSQL** (using Docker):
+1. **Clone the repository**
    ```bash
-   docker run --name umlmm-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16-alpine
+   git clone https://github.com/LuisVDataIntelligence/UMLMM.git
+   cd UMLMM
    ```
 
-2. **Update connection string** in `src/UMLMM.Ingestors.CivitAI/appsettings.json`:
-   ```json
-   {
-     "ConnectionStrings": {
-       "DefaultConnection": "Host=localhost;Database=umlmm;Username=postgres;Password=postgres"
-     }
-   }
-   ```
-
-3. **Run migrations** (automatically applied on startup):
+2. **Start PostgreSQL** (if not already running)
    ```bash
-   cd src/UMLMM.Ingestors.CivitAI
-   dotnet run
+   docker run -d \
+     --name umlmm-postgres \
+     -e POSTGRES_DB=umlmm \
+     -e POSTGRES_USER=postgres \
+     -e POSTGRES_PASSWORD=postgres \
+     -p 5432:5432 \
+     postgres:16-alpine
    ```
 
-### Running the CivitAI Ingestor
+3. **Configure the application**
+   
+   Edit `src/UMLMM.DanbooruIngestor/appsettings.json` or set environment variables:
+   ```bash
+   export ConnectionStrings__DefaultConnection="Host=localhost;Database=umlmm;Username=postgres;Password=postgres"
+   export Danbooru__Tags="rating:safe"
+   export Danbooru__MaxPages=2
+   ```
 
-```bash
-cd src/UMLMM.Ingestors.CivitAI
-dotnet run
-```
-
-#### Configuration
-
-Configure via `appsettings.json` or environment variables:
-
-```json
-{
-  "CivitAI": {
-    "StartPage": 1,
-    "PageSize": 100,
-    "MaxPages": null,
-    "ApiKey": null
-  }
-}
-```
-
-Environment variables (prefix with `UMLMM_`):
-```bash
-export UMLMM_CivitAI__StartPage=1
-export UMLMM_CivitAI__MaxPages=5
-export UMLMM_CivitAI__ApiKey=your-api-key-here
-export UMLMM_ConnectionStrings__DefaultConnection="Host=localhost;Database=umlmm;..."
-```
+4. **Run the Danbooru ingestor**
+   ```bash
+   dotnet run --project src/UMLMM.DanbooruIngestor
+   ```
 
 ### Running Tests
 
 ```bash
-# Run all tests
+# All tests
 dotnet test
 
-# Run specific test project
-dotnet test tests/UMLMM.Ingestors.CivitAI.Tests
+# Unit tests only
+dotnet test tests/UMLMM.DanbooruIngestor.Tests
 
-# Run with coverage
-dotnet test --collect:"XPlat Code Coverage"
+# Integration tests only (requires Docker)
+dotnet test tests/UMLMM.Infrastructure.IntegrationTests
 ```
 
-The integration tests use Testcontainers to spin up ephemeral PostgreSQL containers automatically.
+## Configuration
+
+### Connection String
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=localhost;Database=umlmm;Username=postgres;Password=postgres"
+  }
+}
+```
+
+### Danbooru Settings
+
+```json
+{
+  "Danbooru": {
+    "BaseUrl": "https://danbooru.donmai.us",
+    "PageSize": 100,
+    "MaxPages": 10,
+    "Tags": "rating:safe",
+    "TimeoutSeconds": 30,
+    "RetryCount": 3,
+    "CircuitBreakerThreshold": 5,
+    "CircuitBreakerDurationSeconds": 60
+  }
+}
+```
 
 ## Database Schema
 
-### Key Tables
+### Images
+- Unique index on (source_id, external_id)
+- Tracks preview/original URLs, rating, SHA256
+- JSONB metadata field for source-specific data
 
-- **sources** - Data source definitions
-- **models** - AI models with unique constraint on (source_id, external_id)
-- **model_versions** - Versions with unique constraint on (model_id, external_id)
-- **artifacts** - Files with sha256 index for deduplication
-- **images** - Preview images with sha256 index
-- **tags** - Normalized tag names (unique)
-- **model_tags** - Many-to-many join table
-- **fetch_runs** - Ingestion run metadata and statistics
+### Tags
+- Unique index on name
+- Category field (general, character, copyright, artist, meta)
 
-### Idempotency
+### ImageTags
+- Many-to-many relationship
+- Composite primary key (image_id, tag_id)
 
-The system ensures idempotent ingestion through:
+### FetchRuns
+- Tracks ingestion statistics
+- JSONB parameters field for query tracking
 
-1. **Natural key constraints**: `(source_id, external_id)` prevents duplicate models/versions/artifacts
-2. **Content hash matching**: SHA256 hashes used to identify duplicate files
-3. **Tag normalization**: Lowercase kebab-case ensures consistent tag matching
-4. **Run tracking**: Cursor persistence enables resume on failure
+## Technology Stack
 
-## Resilience Policies
+- **.NET 9**: Latest framework features
+- **Entity Framework Core 9**: PostgreSQL ORM
+- **PostgreSQL 16**: Primary database
+- **Polly 8**: Resilience patterns (retry, circuit breaker)
+- **Serilog**: Structured logging
+- **xUnit + FluentAssertions**: Testing
+- **Testcontainers**: Integration testing
 
-The HTTP client includes Polly policies:
+## Documentation
 
-- **Retry**: 3 attempts with exponential backoff + jitter for transient failures
-- **Circuit Breaker**: Opens after 5 consecutive failures, breaks for 30s
-- **Timeout**: 30s per request with optimistic cancellation
+- [Phase 4 - Danbooru Ingestor](docs/phase-04-danbooru-ingestor.md)
+- [Agent Instructions](docs/AGENT-INSTRUCTIONS.md)
 
-## Logging
+## Roadmap
 
-Serilog outputs to:
-- **Console**: Colored, structured logs
-- **File**: `logs/civitai-ingestor-YYYYMMDD.log` (rolling daily)
-
-Log context includes:
-- Source context (class name)
-- Timestamps
-- Log levels
-- Structured properties
-
-## Development
-
-### Building
-
-```bash
-dotnet build
-```
-
-### Code Formatting
-
-```bash
-dotnet format
-```
-
-### Adding Migrations
-
-```bash
-cd src/UMLMM.Infrastructure
-dotnet ef migrations add <MigrationName> --output-dir Data/Migrations
-```
-
-## CI/CD
-
-GitHub Actions workflow (`.github/workflows/dotnet.yml`) runs on push/PR:
-- Build
-- Run tests (including Testcontainers integration tests)
-- Check code formatting
-
-## Future Enhancements
-
-- Additional ingestors (Danbooru, e621, ComfyUI, Ollama)
-- Blazor Server admin UI for browsing and managing data
-- GraphQL API for querying
-- Background job scheduling with Hangfire
-- Advanced search with full-text indexing
-- Model comparison and recommendation features
-
-## License
-
-[Specify your license here]
+- [x] Phase 4: Danbooru Ingestor
+- [ ] Phase 5: e621 Ingestor
+- [ ] Phase 6: CivitAI Ingestor
+- [ ] Phase 7: Admin UI (Blazor Server)
+- [ ] Phase 8: Search and Query API
+- [ ] Phase 9: Orchestration and Scheduling
 
 ## Contributing
 
-[Contribution guidelines]
+See [AGENT-INSTRUCTIONS.md](docs/AGENT-INSTRUCTIONS.md) for development guidelines.
 
+## License
+
+[Add your license here]

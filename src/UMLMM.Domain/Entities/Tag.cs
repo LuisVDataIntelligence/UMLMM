@@ -2,9 +2,11 @@ namespace UMLMM.Domain.Entities;
 
 public class Tag
 {
-    public int Id { get; set; }
-    public required string Name { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-    public ICollection<ModelTag> ModelTags { get; set; } = new List<ModelTag>();
+    public Guid Id { get; set; }
+    public string Name { get; set; } = default!;
+    public string? Category { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    
+    public ICollection<ImageTag> ImageTags { get; set; } = new List<ImageTag>();
 }
