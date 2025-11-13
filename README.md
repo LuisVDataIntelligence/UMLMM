@@ -1,95 +1,153 @@
 # UMLMM
-
 Unified Model/Media Metadata — ingestion (CivitAI, Danbooru, e621, ComfyUI, Ollama), centralized PostgreSQL, orchestration, and Blazor Server admin UI.
 
-## Overview
+## Phase 2 — Database and Shared Library (EF Core + PostgreSQL)
 
-UMLMM is a system for ingesting, managing, and querying metadata from various AI model and media sources. Phase 6 implements the ComfyUI workflow ingestor.
+This phase implements the central PostgreSQL schema and shared .NET class library with EF Core entities, DbContext, and migrations.
 
-## Features
-
-### Phase 6: ComfyUI Ingestor
-
-- ✅ Discovers and parses ComfyUI workflow files (JSON graphs)
-- ✅ Stores workflows in PostgreSQL with JSONB graph storage
-- ✅ Idempotent upserts keyed by (source_id, external_id)
-- ✅ Tracks ingestion runs with statistics (created/updated/no-op/errors)
-- ✅ Configurable directory scanning with include/exclude patterns
-- ✅ Structured logging with Serilog
-- ✅ Unit and integration tests with Testcontainers
-
-## Architecture
+### Project Structure
 
 ```
-UMLMM/
-├── src/
-│   ├── UMLMM.Core/              # Domain models and EF Core DbContext
-│   └── UMLMM.ComfyUIIngestor/   # Worker service for workflow ingestion
-├── tests/
-│   └── UMLMM.ComfyUIIngestor.Tests/  # Unit and integration tests
-└── docs/
-    └── phase-06-comfyui-ingestor.md  # Detailed documentation
+src/
+  UMLMM.Domain/              # Domain entities, enums, and value objects
+  UMLMM.Infrastructure/      # EF Core DbContext, entity configurations, and migrations
+tests/
+  UMLMM.Domain.Tests/        # Unit tests for domain entities
+  UMLMM.Infrastructure.Tests/ # Integration tests with Testcontainers
+tools/
+  UMLMM.DbTool/              # Console tool for database migrations
 ```
 
-## Quick Start
+### Database Schema
 
-### Prerequisites
+The schema includes the following normalized tables:
+
+- **sources** - Source systems (CivitAI, Danbooru, etc.)
+- **models** - AI models with metadata and raw JSONB data
+- **model_versions** - Model versions with JSONB metadata
+- **tags** - Tags with normalization support
+- **model_tags** - Many-to-many relationship between models and tags
+- **artifacts** - Model artifacts (files, configs, etc.)
+- **images** - Images associated with models/versions
+- **workflows** - ComfyUI workflows with JSONB graph data
+- **prompts** - Prompts associated with models
+- **fetch_runs** - Metadata about ingestion runs
+
+All tables use:
+- Snake_case naming for PostgreSQL compatibility
+- JSONB columns for flexible metadata storage
+- Unique constraints for idempotent upserts
+- Proper indexes (btree on FKs, GIN on JSONB, hash on sha256)
+- UTC timestamps (timestamptz)
+
+### Getting Started
+
+#### Prerequisites
 
 - .NET 9.0 SDK
-- PostgreSQL 12+
-- Docker (for running tests)
+- PostgreSQL 14+ (or use Docker)
 
-### Build
+#### Build
 
 ```bash
 dotnet build
 ```
 
-### Run Tests
+#### Run Tests
 
 ```bash
-# All tests
+# Run all tests
 dotnet test
 
-# Unit tests only
-dotnet test --filter "FullyQualifiedName~Unit"
-
-# Integration tests only
-dotnet test --filter "FullyQualifiedName~Integration"
+# Run specific test project
+dotnet test tests/UMLMM.Domain.Tests
+dotnet test tests/UMLMM.Infrastructure.Tests
 ```
 
-### Configure
+#### Database Tool
 
-Edit `src/UMLMM.ComfyUIIngestor/appsettings.json`:
-
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Database=umlmm;Username=postgres;Password=postgres"
-  },
-  "ComfyUIIngestor": {
-    "BaseDirectories": [
-      "/path/to/comfyui/workflows"
-    ],
-    "IncludePatterns": ["*.json"],
-    "ExcludePatterns": ["temp", ".backup"],
-    "IntervalSeconds": 3600,
-    "SourceId": "comfyui"
-  }
-}
-```
-
-### Run
+The `UMLMM.DbTool` console application provides commands for managing database migrations:
 
 ```bash
-cd src/UMLMM.ComfyUIIngestor
-dotnet run
+cd tools/UMLMM.DbTool
+dotnet run -- migrate     # Apply pending migrations
+dotnet run -- check       # Check migration status
+dotnet run -- ensure      # Ensure database exists
+dotnet run -- drop        # Drop database (requires confirmation)
 ```
 
-## Documentation
+Connection string can be configured via:
+- `appsettings.json`
+- `DATABASE_URL` environment variable
+- Default: `Host=localhost;Database=umlmm;Username=postgres;Password=postgres`
 
-See [docs/phase-06-comfyui-ingestor.md](docs/phase-06-comfyui-ingestor.md) for detailed documentation.
+#### Using with Docker (PostgreSQL)
 
-## License
+```bash
+# Start PostgreSQL
+docker run -d \
+  --name umlmm-postgres \
+  -e POSTGRES_DB=umlmm \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -p 5432:5432 \
+  postgres:16-alpine
 
-MIT
+# Apply migrations
+cd tools/UMLMM.DbTool
+dotnet run -- migrate
+```
+
+### Entity Framework Migrations
+
+To create a new migration:
+
+```bash
+cd src/UMLMM.Infrastructure
+dotnet ef migrations add YourMigrationName
+```
+
+To apply migrations programmatically:
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+using UMLMM.Infrastructure.Persistence;
+
+var options = new DbContextOptionsBuilder<AppDbContext>()
+    .UseNpgsql("your-connection-string")
+    .Options;
+
+await using var context = new AppDbContext(options);
+await context.Database.MigrateAsync();
+```
+
+### Idempotent Upserts
+
+The schema enforces unique constraints to support idempotent operations:
+
+- Models: unique on `(source_id, external_id)`
+- Workflows: unique on `(source_id, external_id)`
+- Tags: unique on `(normalized_name, source_id)`
+- Artifacts/Images: sha256 hashing for deduplication
+
+### Testing
+
+- **Unit Tests**: Validate domain entity properties and behavior
+- **Integration Tests**: Use Testcontainers to test migrations, constraints, and idempotency
+- **Performance Tests**: Verify batch operations (100-1000 records) perform acceptably
+
+### Quality Standards
+
+- ✅ All migrations apply successfully
+- ✅ Unique constraints prevent duplicates
+- ✅ JSONB columns store and retrieve data correctly
+- ✅ Foreign key relationships enforce referential integrity
+- ✅ Batch operations complete in reasonable time
+- ✅ All tests pass in CI
+
+### Next Steps
+
+Phase 3 will implement:
+- Ingestion services for each source (CivitAI, Danbooru, etc.)
+- Background job orchestration
+- Blazor Server admin UI
