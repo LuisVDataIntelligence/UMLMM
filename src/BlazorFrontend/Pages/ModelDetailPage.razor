@@ -1,0 +1,343 @@
+@page "/model/{id:int}"
+@using Contracts.DTOs
+@using BlazorFrontend.Services
+@using BlazorFrontend.Components.Shared
+@inject IApiClient ApiClient
+@inject NavigationManager Navigation
+
+<PageTitle>@(model?.Name ?? "Model Detail") - UMLMM</PageTitle>
+
+@if (loading)
+{
+    <LoadingSpinner Message="Loading model details..." />
+}
+else if (error != null)
+{
+    <ErrorDisplay Message="@error" OnRetry="LoadModelAsync" />
+}
+else if (model != null)
+{
+    <div class="mb-3">
+        <a href="/search" class="btn btn-sm btn-outline-secondary">
+            <span class="bi bi-arrow-left"></span> Back to Search
+        </a>
+        @if (!isEditing)
+        {
+            <button class="btn btn-sm btn-primary ms-2" @onclick="StartEdit">
+                <span class="bi bi-pencil"></span> Edit
+            </button>
+        }
+    </div>
+
+    @if (isEditing)
+    {
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Edit Model</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Name</label>
+                    <input type="text" class="form-control" @bind="editModel.Name" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control" rows="4" @bind="editModel.Description"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Source</label>
+                    <select class="form-select" @bind="editModel.Source">
+                        <option value="CivitAI">CivitAI</option>
+                        <option value="Danbooru">Danbooru</option>
+                        <option value="e621">e621</option>
+                        <option value="ComfyUI">ComfyUI</option>
+                        <option value="Ollama">Ollama</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Tags (comma-separated)</label>
+                    <input type="text" class="form-control" @bind="tagsString" />
+                </div>
+                <div>
+                    <button class="btn btn-success" @onclick="SaveModelAsync" disabled="@saving">
+                        @if (saving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        <span class="bi bi-check-circle"></span> Save
+                    </button>
+                    <button class="btn btn-secondary ms-2" @onclick="CancelEdit" disabled="@saving">
+                        <span class="bi bi-x-circle"></span> Cancel
+                    </button>
+                </div>
+                @if (saveError != null)
+                {
+                    <div class="alert alert-danger mt-3">
+                        @saveError
+                    </div>
+                }
+                @if (saveSuccess)
+                {
+                    <div class="alert alert-success mt-3">
+                        Model updated successfully!
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3 class="mb-0">@model.Name</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Source:</strong> <span class="badge bg-info">@model.Source</span>
+                        </div>
+                        <div class="col-md-6">
+                            @if (model.Rating.HasValue)
+                            {
+                                <strong>Rating:</strong> <span class="text-warning">★ @model.Rating.Value.ToString("F1")</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            @if (model.ModelType != null)
+                            {
+                                <strong>Type:</strong> @model.ModelType
+                            }
+                        </div>
+                        <div class="col-md-6">
+                            @if (model.DownloadCount.HasValue)
+                            {
+                                <strong>Downloads:</strong> @model.DownloadCount.Value.ToString("N0")
+                            }
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(model.Description))
+                    {
+                        <div class="mb-3">
+                            <strong>Description:</strong>
+                            <p>@model.Description</p>
+                        </div>
+                    }
+                    @if (model.Tags.Any())
+                    {
+                        <div class="mb-3">
+                            <strong>Tags:</strong>
+                            <div class="mt-2">
+                                @foreach (var tag in model.Tags)
+                                {
+                                    <span class="badge bg-secondary me-1 mb-1">@tag</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                    <div class="row">
+                        <div class="col-md-6">
+                            <small class="text-muted">Created: @model.CreatedAt.ToString("MMM dd, yyyy HH:mm")</small>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted">Updated: @model.UpdatedAt.ToString("MMM dd, yyyy HH:mm")</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @if (model.Versions.Any())
+            {
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Versions (@model.Versions.Count)</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="list-group">
+                            @foreach (var version in model.Versions.OrderByDescending(v => v.CreatedAt))
+                            {
+                                <div class="list-group-item">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1">@version.Name</h6>
+                                        <small class="text-muted">@version.CreatedAt.ToString("MMM dd, yyyy")</small>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(version.Description))
+                                    {
+                                        <p class="mb-1">@version.Description</p>
+                                    }
+                                    @if (version.FileSize.HasValue)
+                                    {
+                                        <small class="text-muted">Size: @FormatFileSize(version.FileSize.Value)</small>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(version.DownloadUrl))
+                                    {
+                                        <a href="@version.DownloadUrl" class="btn btn-sm btn-outline-primary mt-2" target="_blank">
+                                            <span class="bi bi-download"></span> Download
+                                        </a>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="col-md-4">
+            @if (model.Images.Any())
+            {
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Images (@model.Images.Count)</h5>
+                    </div>
+                    <div class="card-body">
+                        @foreach (var image in model.Images)
+                        {
+                            <div class="mb-3">
+                                <img src="@image.Url" class="img-fluid rounded" alt="Model image" />
+                                @if (image.Width.HasValue && image.Height.HasValue)
+                                {
+                                    <small class="text-muted d-block mt-1">@image.Width x @image.Height</small>
+                                }
+                                @if (image.IsPrimary)
+                                {
+                                    <span class="badge bg-success mt-1">Primary</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private bool loading = true;
+    private string? error;
+    private ModelDto? model;
+    private bool isEditing = false;
+    private ModelDto editModel = new();
+    private string tagsString = "";
+    private bool saving = false;
+    private string? saveError;
+    private bool saveSuccess = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadModelAsync();
+    }
+
+    private async Task LoadModelAsync()
+    {
+        loading = true;
+        error = null;
+        StateHasChanged();
+
+        try
+        {
+            model = await ApiClient.GetModelAsync(Id);
+            if (model == null)
+            {
+                error = "Model not found";
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load model: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void StartEdit()
+    {
+        if (model == null) return;
+
+        isEditing = true;
+        editModel = new ModelDto
+        {
+            Id = model.Id,
+            Name = model.Name,
+            Description = model.Description,
+            Source = model.Source,
+            ExternalId = model.ExternalId,
+            ModelType = model.ModelType,
+            Rating = model.Rating,
+            DownloadCount = model.DownloadCount,
+            Tags = new List<string>(model.Tags),
+            Versions = model.Versions,
+            Images = model.Images,
+            CreatedAt = model.CreatedAt,
+            UpdatedAt = model.UpdatedAt
+        };
+        tagsString = string.Join(", ", model.Tags);
+        saveError = null;
+        saveSuccess = false;
+    }
+
+    private void CancelEdit()
+    {
+        isEditing = false;
+        saveError = null;
+        saveSuccess = false;
+    }
+
+    private async Task SaveModelAsync()
+    {
+        if (editModel == null) return;
+
+        saving = true;
+        saveError = null;
+        saveSuccess = false;
+        StateHasChanged();
+
+        try
+        {
+            // Parse tags
+            editModel.Tags = tagsString
+                .Split(',')
+                .Select(t => t.Trim())
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .ToList();
+
+            model = await ApiClient.UpdateModelAsync(Id, editModel);
+            saveSuccess = true;
+            
+            // Wait a moment to show success message
+            await Task.Delay(1500);
+            
+            isEditing = false;
+        }
+        catch (Exception ex)
+        {
+            saveError = $"Failed to save model: {ex.Message}";
+        }
+        finally
+        {
+            saving = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
+    }
+}

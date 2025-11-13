@@ -1,135 +1,202 @@
-# UMLMM - Unified Model/Media Metadata
+# UMLMM
+Unified Model/Media Metadata — ingestion (CivitAI, Danbooru, e621, ComfyUI, Ollama), centralized PostgreSQL, orchestration, and Blazor Server admin UI.
 
-A comprehensive metadata ingestion and management system that consolidates data from multiple sources including CivitAI, Danbooru, e621, ComfyUI, and Ollama.
-
-## Features
-
-- **Multi-Source Ingestion**: Automated data fetching from 5+ sources
-- **Quartz.NET Scheduling**: Robust job scheduling with configurable cron expressions
-- **No-Overlap Execution**: Prevents concurrent runs per source while allowing parallel execution across different sources
-- **Comprehensive Tracking**: Records detailed statistics for every job run (timings, counts, errors)
-- **Graceful Shutdown**: Waits for jobs to complete before stopping
-- **Configurable Schedules**: Easily adjust job frequencies via configuration files or environment variables
+## Overview
+UMLMM is a comprehensive metadata management system designed to ingest, normalize, and manage model and media metadata from multiple sources. The system provides a unified interface for searching, viewing, and managing models and monitoring ingestion runs.
 
 ## Architecture
 
-### Projects
+### Components
+- **Contracts**: Shared data transfer objects (DTOs) used across the application
+- **BlazorFrontend**: Web-based admin UI built with Blazor Server
+- **ApiGateway**: (Future) RESTful API for data access
+- **Ingestion Services**: (Future) Data ingestion from multiple sources
+- **Database**: (Future) PostgreSQL with normalized schema
 
-- **UMLMM.Core** - Shared library with models, interfaces, and services
-- **UMLMM.Orchestrator** - Worker service with Quartz.NET job scheduling
-- **UMLMM.Orchestrator.Tests** - Comprehensive test suite with unit and integration tests
+## Phase 9: Blazor Frontend
 
-### Data Sources
+This repository currently implements Phase 9 of the UMLMM project, which includes:
 
-| Source   | Description                    | Default Schedule  |
-|----------|--------------------------------|-------------------|
-| CivitAI  | AI model repository            | Every 6 hours     |
-| Danbooru | Image board                    | Every 4 hours     |
-| e621     | Image board                    | Every 4 hours     |
-| ComfyUI  | Workflow engine metadata       | Every 12 hours    |
-| Ollama   | Local LLM model metadata       | Daily at midnight |
+### Features
+1. **Search Page** (`/search`)
+   - Server-side pagination
+   - Filters: source, rating, tags
+   - Text search across model names and descriptions
+   - Visual card-based layout with images
 
-## Quick Start
+2. **Model Detail/Edit Page** (`/model/{id}`)
+   - View model metadata, versions, images, and tags
+   - Edit model information
+   - Manage versions and images
+
+3. **Runs Dashboard** (`/runs`)
+   - Monitor ingestion runs
+   - View run statistics (completed, running, failed)
+   - Real-time status updates
+
+### Technology Stack
+- **.NET 8.0**: Modern cross-platform framework
+- **Blazor Server**: Interactive web UI with C#
+- **bUnit**: Component testing framework
+- **xUnit**: Unit testing framework
+- **Bootstrap 5**: Responsive UI styling
+
+## Getting Started
 
 ### Prerequisites
+- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) or later
 
-- .NET 9.0 SDK
-- Git
-
-### Build and Run
+### Building the Project
 
 ```bash
 # Clone the repository
 git clone https://github.com/LuisVDataIntelligence/UMLMM.git
 cd UMLMM
 
-# Build the solution
+# Restore dependencies and build
+dotnet restore
 dotnet build
-
-# Run tests
-dotnet test
-
-# Run the orchestrator
-dotnet run --project src/UMLMM.Orchestrator
 ```
 
-### Configuration
-
-Job schedules can be configured in `src/UMLMM.Orchestrator/appsettings.json`:
-
-```json
-{
-  "JobSchedules": {
-    "CivitAI": {
-      "CronSchedule": "0 0 */6 * * ?",
-      "Description": "Every 6 hours"
-    }
-  }
-}
-```
-
-Or via environment variables:
+### Running the Application
 
 ```bash
-export JobSchedules__CivitAI__CronSchedule="0 0 */2 * * ?"
+# Run the Blazor Frontend
+cd src/BlazorFrontend
+dotnet run
+
+# The application will be available at:
+# https://localhost:5001 (HTTPS)
+# http://localhost:5000 (HTTP)
 ```
 
-## Documentation
-
-- [Phase 8 - Orchestration and Scheduling](docs/phase-08-orchestration-and-scheduling.md) - Detailed implementation guide
-- [Agent Instructions](docs/AGENT-INSTRUCTIONS.md) - Developer guidelines and best practices
-
-## Testing
-
-The project includes comprehensive tests:
+### Running Tests
 
 ```bash
 # Run all tests
 dotnet test
 
-# Run specific test categories
-dotnet test --filter "FullyQualifiedName~JobRegistrationTests"
-dotnet test --filter "FullyQualifiedName~NoOverlapIntegrationTests"
+# Run tests with detailed output
+dotnet test --verbosity normal
+
+# Run tests with coverage (requires coverlet)
+dotnet test /p:CollectCoverage=true
 ```
 
-All tests validate:
-- Job registration and configuration
-- No-overlap enforcement per source
-- Concurrent execution across different sources
-- Statistics tracking
-- Error handling and cancellation
+## Project Structure
 
-## Development Status
+```
+UMLMM/
+├── docs/                           # Documentation
+│   ├── phase-09-blazor-frontend.md
+│   └── AGENT-INSTRUCTIONS.md
+├── src/                            # Source code
+│   ├── BlazorFrontend/            # Blazor Server application
+│   │   ├── Components/
+│   │   │   ├── Layout/           # Layout components
+│   │   │   └── Shared/           # Shared components
+│   │   ├── Pages/                # Page components
+│   │   ├── Services/             # API client and services
+│   │   └── wwwroot/              # Static files
+│   └── Contracts/                 # Shared DTOs
+│       └── DTOs/
+├── tests/                          # Test projects
+│   └── BlazorFrontend.Tests/     # Component tests
+└── UMLMM.sln                      # Solution file
+```
 
-### Phase 8 - Orchestration and Scheduling ✅ Complete
+## Configuration
 
-- [x] Quartz.NET integration
-- [x] Job implementations for all 5 sources
-- [x] No-overlap logic per source
-- [x] Configuration support (appsettings + env vars)
-- [x] Comprehensive logging
-- [x] Graceful shutdown
-- [x] Unit and integration tests
-- [x] Documentation
+The Blazor Frontend can be configured via `appsettings.json`:
 
-### Future Phases
+```json
+{
+  "ApiGateway": {
+    "BaseUrl": "http://localhost:5000"
+  }
+}
+```
 
-- **Phase 9**: PostgreSQL integration with Entity Framework Core
-- **Phase 10**: Blazor Server admin UI for job monitoring and management
-- **Phase 11**: Advanced features (dependencies, retries, webhooks, metrics)
+Currently, the application uses mock data for demonstration purposes. When the API Gateway is implemented, it will automatically connect to the real backend.
+
+## Development
+
+### Adding New Pages
+1. Create a new `.razor` file in `src/BlazorFrontend/Pages/`
+2. Define the route using `@page "/your-route"`
+3. Inject required services using `@inject`
+4. Add navigation links in `NavMenu.razor`
+
+### Creating Tests
+1. Create a new test file in `tests/BlazorFrontend.Tests/`
+2. Inherit from `TestContext` (bUnit)
+3. Mock dependencies using NSubstitute
+4. Use the Arrange-Act-Assert pattern
+
+### Coding Standards
+- Follow Microsoft C# coding conventions
+- Use nullable reference types
+- Implement proper error handling
+- Add XML documentation for public APIs
+- Write tests for new components
+
+## Documentation
+
+For detailed information about the project:
+- [Phase 9 Documentation](docs/phase-09-blazor-frontend.md)
+- [Agent Instructions](docs/AGENT-INSTRUCTIONS.md)
+
+## Current Status
+
+### ✅ Completed
+- Project structure and configuration
+- Shared DTOs (Models, Runs, Search)
+- API client with mock data support
+- Search page with pagination and filters
+- Model detail/edit page
+- Runs dashboard with statistics
+- Layout and navigation
+- Shared components (Loading, Error display)
+- Comprehensive bUnit test suite
+- Documentation
+
+### 🚧 Future Work
+- API Gateway implementation
+- Real backend integration
+- Database schema and migrations
+- Ingestion services
+- Authentication and authorization
+- Advanced filtering and sorting
+- Export functionality
+- Real-time updates via SignalR
+
+## Testing
+
+The project includes comprehensive test coverage:
+- **Shared Components**: Loading spinner, error display
+- **Search Page**: Rendering, filtering, pagination
+- **Model Detail Page**: View, edit, versions
+- **Runs Dashboard**: Statistics, status display, refresh
+
+Run tests to ensure everything works:
+```bash
+dotnet test
+```
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests to ensure everything works
-5. Submit a pull request
+1. Create a feature branch
+2. Make your changes
+3. Add/update tests
+4. Ensure all tests pass
+5. Update documentation
+6. Submit a pull request
 
 ## License
 
-[Add your license here]
+[Add License Information]
 
 ## Contact
 
-For questions or issues, please open an issue on GitHub.
+[Add Contact Information]
+
