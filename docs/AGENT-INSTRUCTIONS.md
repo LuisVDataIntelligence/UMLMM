@@ -1,188 +1,190 @@
 # Agent Instructions
 
-## Project Structure
+This document provides guidance for AI agents working on the UMLMM project.
 
-This is a .NET 9 solution with the following structure:
+## Project Overview
 
-```
-UMLMM/
-├── src/
-│   ├── UMLMM.Domain/              # Domain entities and models
-│   ├── UMLMM.Infrastructure/       # Database context and data access
-│   └── UMLMM.DanbooruIngestor/    # Worker service for Danbooru ingestion
-├── tests/
-│   ├── UMLMM.DanbooruIngestor.Tests/          # Unit tests
-│   └── UMLMM.Infrastructure.IntegrationTests/  # Integration tests
-└── docs/
-    ├── phase-04-danbooru-ingestor.md
-    └── AGENT-INSTRUCTIONS.md
-```
+UMLMM (Unified Model/Media Metadata) is a system for ingesting media metadata from multiple sources (e621, CivitAI, Danbooru, ComfyUI, Ollama) into a centralized PostgreSQL database with a Blazor admin UI.
 
-## Technology Stack
+## Current State (Phase 5 Complete)
 
-- **.NET 9**: Latest LTS version
-- **Entity Framework Core 9**: ORM for PostgreSQL
-- **PostgreSQL 16**: Database
-- **Polly 8**: Resilience and transient fault handling
-- **Serilog**: Structured logging
-- **xUnit**: Testing framework
-- **FluentAssertions**: Test assertions
-- **Testcontainers**: Integration testing with Docker
-- **NSubstitute**: Mocking framework
+✅ **e621 Ingestor** - Production-ready worker service
+- Clean architecture with Core, Data, and Worker layers
+- EF Core with PostgreSQL
+- Resilient HTTP client with Polly (retry + circuit breaker)
+- Comprehensive test coverage (16 tests passing)
+- Structured logging with Serilog
 
-## Development Guidelines
+## Architecture Principles
 
-### Building
+1. **Clean Architecture**
+   - Core: Domain entities and enums
+   - Data: EF Core, repositories, configurations
+   - Applications: Worker services, API clients
 
-```bash
-dotnet build
-```
+2. **Idempotency**
+   - All ingestion operations must be idempotent
+   - Use unique indexes on (source_id, external_id)
+   - Upsert patterns for all data
 
-### Running Tests
+3. **Resilience**
+   - Polly retry policies with exponential backoff
+   - Circuit breakers for external APIs
+   - Proper error handling and logging
 
-```bash
-# All tests
-dotnet test
+4. **Testing**
+   - Unit tests for mapping and business logic
+   - Integration tests with Testcontainers
+   - Test fixtures with recorded API responses
 
-# Unit tests only
-dotnet test tests/UMLMM.DanbooruIngestor.Tests
+## Code Style
 
-# Integration tests only
-dotnet test tests/UMLMM.Infrastructure.IntegrationTests
-```
+- Use modern C# features (.NET 9)
+- Async/await throughout
+- Structured logging with context
+- Configuration via appsettings.json and environment variables
+- Nullable reference types enabled
 
-### Code Style
+## Database Schema
 
-- Use C# 12 features (file-scoped namespaces, primary constructors where appropriate)
-- Follow standard .NET naming conventions
-- Use `var` for local variables when type is obvious
-- Prefer explicit types for public APIs
-- Use nullable reference types (`string?` for nullable strings)
+All entities should follow this naming convention:
+- Table names: lowercase with underscores (e.g., `post_tags`)
+- Column names: lowercase with underscores (e.g., `external_id`)
+- Primary keys: `id`
+- Foreign keys: `<entity>_id` (e.g., `source_id`)
 
-### Database Migrations
+Always include:
+- Unique indexes on natural keys
+- Timestamps (`created_at`, `updated_at` where applicable)
+- Proper foreign key relationships with cascade rules
 
-To create a migration:
+## Adding New Ingestors
 
-```bash
-cd src/UMLMM.Infrastructure
-dotnet ef migrations add MigrationName --startup-project ../UMLMM.DanbooruIngestor
-dotnet ef database update --startup-project ../UMLMM.DanbooruIngestor
-```
+When adding a new ingestor (e.g., Danbooru, CivitAI):
 
-Note: Currently using `EnsureCreatedAsync()` for simplicity. For production, use proper migrations.
+1. **Domain Entities**
+   - Reuse existing entities where possible
+   - Add new entities to UMLMM.Core if needed
 
-### Testing Guidelines
+2. **API Client**
+   - Create DTOs matching the API response
+   - Implement resilient HTTP client
+   - Add proper User-Agent
+   - Respect rate limits
 
-#### Unit Tests
-- Test business logic and mappings
-- Mock external dependencies
-- Use descriptive test names: `MethodName_Scenario_ExpectedBehavior`
-- Use AAA pattern: Arrange, Act, Assert
-
-#### Integration Tests
-- Use Testcontainers for real PostgreSQL instances
-- Test database operations and constraints
-- Verify idempotency
-- Clean up resources properly
-
-### Adding New Ingestors
-
-To add a new data source ingestor (e.g., e621, CivitAI):
-
-1. **Create Domain Entities** (if needed)
-   - Add to `UMLMM.Domain/Entities/`
-   - Update `UmlmmDbContext` with DbSets and configuration
-
-2. **Create Worker Project**
-   ```bash
-   cd src
-   dotnet new worker -n UMLMM.NewSourceIngestor
-   dotnet sln add UMLMM.NewSourceIngestor
-   ```
-
-3. **Add API Client**
-   - Create DTOs for API responses
-   - Implement client with HttpClientFactory
-   - Add Polly policies for resilience
-
-4. **Add Mapper**
+3. **Mapper**
    - Map API DTOs to domain entities
-   - Handle all edge cases
+   - Handle null values gracefully
+   - Extract and normalize tags
 
-5. **Add Ingestion Service**
-   - Implement idempotent upserts
-   - Track statistics in FetchRun
-   - Handle errors gracefully
+4. **Service**
+   - Orchestrate API calls and persistence
+   - Track FetchRuns for audit
+   - Log progress with structured logging
 
-6. **Add Tests**
-   - Unit tests for mapping
-   - Integration tests for database operations
+5. **Tests**
+   - Unit tests for mapper
+   - Integration tests for repository
+   - Recorded API responses for fixtures
 
-### Logging
-
-Use structured logging with Serilog:
-
-```csharp
-_logger.LogInformation(
-    "Processed page {Page}: Created={Created}, Updated={Updated}",
-    page, createdCount, updatedCount);
-```
-
-### Error Handling
-
-- Use try-catch at service boundaries
-- Log errors with context
-- Track errors in FetchRun.ErrorCount
-- Don't let single item failures stop batch processing
-
-### Performance Considerations
-
-- Use `AsNoTracking()` for read-only queries
-- Batch database operations when possible
-- Consider pagination for large result sets
-- Use indexes for frequently queried columns
-
-## Common Tasks
-
-### Adding a New Configuration Setting
-
-1. Add property to settings class (e.g., `DanbooruSettings`)
-2. Update `appsettings.json`
-3. Document in `phase-04-danbooru-ingestor.md`
-
-### Adding a New Entity
-
-1. Create entity class in `UMLMM.Domain/Entities/`
-2. Add DbSet to `UmlmmDbContext`
-3. Configure in `OnModelCreating` (indexes, constraints, etc.)
-4. Create migration (if using migrations)
-5. Add integration tests
-
-### Debugging Issues
-
-1. Check logs for structured data
-2. Verify database constraints
-3. Check for version conflicts in dependencies
-4. Run integration tests to verify database operations
-
-## CI/CD Considerations
-
-- Tests run in CI environment
-- Integration tests use Testcontainers (requires Docker)
-- Build warnings are treated as informational
-- All tests must pass before merge
-
-## Security
+## Security Guidelines
 
 - Never commit secrets or API keys
-- Use environment variables or secret management for sensitive data
-- Validate and sanitize all external input
-- Use parameterized queries (EF Core does this automatically)
+- Use environment variables for sensitive config
+- Validate all external input
+- Use parameterized queries (EF Core does this)
 - Keep dependencies updated
 
-## Documentation
+## Performance Considerations
 
-- Update README.md for major changes
-- Keep phase documentation current
-- Document breaking changes
-- Add inline comments for complex logic only
+- Use indexes on frequently queried columns
+- Batch operations where possible
+- Async/await for I/O operations
+- Connection pooling (built into EF Core)
+- Rate limiting for external APIs
+
+## Monitoring and Observability
+
+- Structured logging with Serilog
+- Enrich logs with context (runId, source, etc.)
+- Track metrics in FetchRuns
+- Log errors with full context
+
+## Next Steps (Future Phases)
+
+- Phase 6: Danbooru ingestor
+- Phase 7: CivitAI ingestor
+- Phase 8: Orchestration service
+- Phase 9: Blazor admin UI
+- Phase 10: ComfyUI integration
+- Phase 11: Ollama integration
+
+## Common Patterns
+
+### Upsert Pattern
+
+```csharp
+var existing = await GetByExternalIdAsync(sourceId, externalId);
+if (existing != null)
+{
+    // Update existing
+    existing.Property = newValue;
+    _context.Update(existing);
+}
+else
+{
+    // Create new
+    var entity = new Entity { ... };
+    _context.Add(entity);
+}
+await _context.SaveChangesAsync();
+```
+
+### Resilient HTTP Client
+
+```csharp
+builder.Services.AddHttpClient<IClient, Client>(client =>
+{
+    client.BaseAddress = new Uri(options.BaseUrl);
+    client.DefaultRequestHeaders.Add("User-Agent", options.UserAgent);
+})
+.AddPolicyHandler(GetRetryPolicy())
+.AddPolicyHandler(GetCircuitBreakerPolicy());
+```
+
+### FetchRun Tracking
+
+```csharp
+var fetchRun = await CreateFetchRunAsync(sourceId);
+try
+{
+    // ... ingestion logic ...
+    fetchRun.Success = true;
+    fetchRun.PostsFetched = count;
+}
+catch (Exception ex)
+{
+    fetchRun.Success = false;
+    fetchRun.ErrorMessage = ex.Message;
+}
+finally
+{
+    fetchRun.CompletedAt = DateTime.UtcNow;
+    await UpdateFetchRunAsync(fetchRun);
+}
+```
+
+## Testing Guidelines
+
+- Use xUnit for test framework
+- FluentAssertions for assertions
+- Testcontainers for integration tests
+- Moq for mocking dependencies
+- Arrange-Act-Assert pattern
+
+## Questions?
+
+Refer to:
+- [phase-05-e621-ingestor.md](phase-05-e621-ingestor.md) for e621 specifics
+- EF Core documentation for data access patterns
+- Polly documentation for resilience patterns
