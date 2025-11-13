@@ -1,16 +1,15 @@
-using UMLMM.Domain.Common;
-
 namespace UMLMM.Domain.Entities;
 
-public class Source : BaseEntity
+public class Source
 {
-    public int SourceId { get; set; }
+    public int Id { get; set; }
     public required string Name { get; set; }
-    public required string BaseUrl { get; set; }
+    public required string Type { get; set; }
+    public string? BaseUrl { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? UpdatedAt { get; set; }
 
     public ICollection<Model> Models { get; set; } = new List<Model>();
-    public ICollection<Tag> Tags { get; set; } = new List<Tag>();
-    public ICollection<Workflow> Workflows { get; set; } = new List<Workflow>();
-    public ICollection<Prompt> Prompts { get; set; } = new List<Prompt>();
     public ICollection<FetchRun> FetchRuns { get; set; } = new List<FetchRun>();
 }

@@ -1,20 +1,18 @@
-using UMLMM.Domain.Common;
-using UMLMM.Domain.Enums;
-
 namespace UMLMM.Domain.Entities;
 
-public class Image : BaseEntity
+public class Image
 {
-    public int ImageId { get; set; }
-    public int? ModelId { get; set; }
-    public int? ModelVersionId { get; set; }
-    public required string Url { get; set; }
-    public NsfwRating Rating { get; set; } = NsfwRating.Unknown;
+    public int Id { get; set; }
+    public int VersionId { get; set; }
+    public required string ExternalId { get; set; }
+    public string? PreviewUrl { get; set; }
     public int? Width { get; set; }
     public int? Height { get; set; }
+    public string? Rating { get; set; }
     public string? Sha256 { get; set; }
-    public string? Metadata { get; set; }
+    public string? Raw { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? UpdatedAt { get; set; }
 
-    public Model? Model { get; set; }
-    public ModelVersion? ModelVersion { get; set; }
+    public ModelVersion Version { get; set; } = null!;
 }

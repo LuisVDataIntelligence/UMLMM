@@ -1,153 +1,207 @@
 # UMLMM
-Unified Model/Media Metadata — ingestion (CivitAI, Danbooru, e621, ComfyUI, Ollama), centralized PostgreSQL, orchestration, and Blazor Server admin UI.
 
-## Phase 2 — Database and Shared Library (EF Core + PostgreSQL)
+Unified Model/Media Metadata — A system for ingesting, managing, and querying metadata from multiple AI model and media sources (CivitAI, Danbooru, e621, ComfyUI, Ollama) into a centralized PostgreSQL database.
 
-This phase implements the central PostgreSQL schema and shared .NET class library with EF Core entities, DbContext, and migrations.
+## Overview
 
-### Project Structure
+UMLMM provides:
 
-```
-src/
-  UMLMM.Domain/              # Domain entities, enums, and value objects
-  UMLMM.Infrastructure/      # EF Core DbContext, entity configurations, and migrations
-tests/
-  UMLMM.Domain.Tests/        # Unit tests for domain entities
-  UMLMM.Infrastructure.Tests/ # Integration tests with Testcontainers
-tools/
-  UMLMM.DbTool/              # Console tool for database migrations
-```
+- **Multi-source ingestion**: Fetch models, versions, files, images, and tags from external APIs
+- **Centralized storage**: PostgreSQL database with normalized schema
+- **Idempotent operations**: Upserts using natural keys (source_id, external_id) and content hashes
+- **Resilient HTTP**: Polly policies for retry, timeout, and circuit breaking
+- **Structured logging**: Serilog with console and file sinks
+- **Resume capability**: Cursor-based pagination with run tracking
 
-### Database Schema
+## Architecture
 
-The schema includes the following normalized tables:
+The solution is organized into three main layers:
 
-- **sources** - Source systems (CivitAI, Danbooru, etc.)
-- **models** - AI models with metadata and raw JSONB data
-- **model_versions** - Model versions with JSONB metadata
-- **tags** - Tags with normalization support
-- **model_tags** - Many-to-many relationship between models and tags
-- **artifacts** - Model artifacts (files, configs, etc.)
-- **images** - Images associated with models/versions
-- **workflows** - ComfyUI workflows with JSONB graph data
-- **prompts** - Prompts associated with models
-- **fetch_runs** - Metadata about ingestion runs
+### Domain Layer (`UMLMM.Domain`)
+Contains core business entities:
+- `Source` - External data sources (CivitAI, etc.)
+- `Model` - AI models with metadata
+- `ModelVersion` - Versions of models
+- `Artifact` - Files (safetensors, checkpoints, etc.)
+- `Image` - Preview images
+- `Tag` - Normalized tags (lowercase kebab-case)
+- `FetchRun` - Ingestion run tracking with statistics
 
-All tables use:
-- Snake_case naming for PostgreSQL compatibility
-- JSONB columns for flexible metadata storage
-- Unique constraints for idempotent upserts
-- Proper indexes (btree on FKs, GIN on JSONB, hash on sha256)
-- UTC timestamps (timestamptz)
+### Infrastructure Layer (`UMLMM.Infrastructure`)
+Provides data access and persistence:
+- EF Core `DbContext` with Postgres provider
+- Database migrations
+- Snake_case column naming convention
+- Indexes on natural keys and content hashes
+- JSONB columns for raw API responses
 
-### Getting Started
+### Ingestor Layer (`UMLMM.Ingestors.CivitAI`)
+Orchestrates data fetching and mapping:
+- CivitAI API client with resilience policies
+- DTO to entity mapping
+- Idempotent upsert logic
+- Tag normalization
+- Structured logging and metrics
 
-#### Prerequisites
+## Getting Started
 
-- .NET 9.0 SDK
-- PostgreSQL 14+ (or use Docker)
+### Prerequisites
 
-#### Build
+- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- PostgreSQL 16+ (or Docker for local development)
+- Docker (for running integration tests)
+
+### Database Setup
+
+1. **Start PostgreSQL** (using Docker):
+   ```bash
+   docker run --name umlmm-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16-alpine
+   ```
+
+2. **Update connection string** in `src/UMLMM.Ingestors.CivitAI/appsettings.json`:
+   ```json
+   {
+     "ConnectionStrings": {
+       "DefaultConnection": "Host=localhost;Database=umlmm;Username=postgres;Password=postgres"
+     }
+   }
+   ```
+
+3. **Run migrations** (automatically applied on startup):
+   ```bash
+   cd src/UMLMM.Ingestors.CivitAI
+   dotnet run
+   ```
+
+### Running the CivitAI Ingestor
 
 ```bash
-dotnet build
+cd src/UMLMM.Ingestors.CivitAI
+dotnet run
 ```
 
-#### Run Tests
+#### Configuration
+
+Configure via `appsettings.json` or environment variables:
+
+```json
+{
+  "CivitAI": {
+    "StartPage": 1,
+    "PageSize": 100,
+    "MaxPages": null,
+    "ApiKey": null
+  }
+}
+```
+
+Environment variables (prefix with `UMLMM_`):
+```bash
+export UMLMM_CivitAI__StartPage=1
+export UMLMM_CivitAI__MaxPages=5
+export UMLMM_CivitAI__ApiKey=your-api-key-here
+export UMLMM_ConnectionStrings__DefaultConnection="Host=localhost;Database=umlmm;..."
+```
+
+### Running Tests
 
 ```bash
 # Run all tests
 dotnet test
 
 # Run specific test project
-dotnet test tests/UMLMM.Domain.Tests
-dotnet test tests/UMLMM.Infrastructure.Tests
+dotnet test tests/UMLMM.Ingestors.CivitAI.Tests
+
+# Run with coverage
+dotnet test --collect:"XPlat Code Coverage"
 ```
 
-#### Database Tool
+The integration tests use Testcontainers to spin up ephemeral PostgreSQL containers automatically.
 
-The `UMLMM.DbTool` console application provides commands for managing database migrations:
+## Database Schema
+
+### Key Tables
+
+- **sources** - Data source definitions
+- **models** - AI models with unique constraint on (source_id, external_id)
+- **model_versions** - Versions with unique constraint on (model_id, external_id)
+- **artifacts** - Files with sha256 index for deduplication
+- **images** - Preview images with sha256 index
+- **tags** - Normalized tag names (unique)
+- **model_tags** - Many-to-many join table
+- **fetch_runs** - Ingestion run metadata and statistics
+
+### Idempotency
+
+The system ensures idempotent ingestion through:
+
+1. **Natural key constraints**: `(source_id, external_id)` prevents duplicate models/versions/artifacts
+2. **Content hash matching**: SHA256 hashes used to identify duplicate files
+3. **Tag normalization**: Lowercase kebab-case ensures consistent tag matching
+4. **Run tracking**: Cursor persistence enables resume on failure
+
+## Resilience Policies
+
+The HTTP client includes Polly policies:
+
+- **Retry**: 3 attempts with exponential backoff + jitter for transient failures
+- **Circuit Breaker**: Opens after 5 consecutive failures, breaks for 30s
+- **Timeout**: 30s per request with optimistic cancellation
+
+## Logging
+
+Serilog outputs to:
+- **Console**: Colored, structured logs
+- **File**: `logs/civitai-ingestor-YYYYMMDD.log` (rolling daily)
+
+Log context includes:
+- Source context (class name)
+- Timestamps
+- Log levels
+- Structured properties
+
+## Development
+
+### Building
 
 ```bash
-cd tools/UMLMM.DbTool
-dotnet run -- migrate     # Apply pending migrations
-dotnet run -- check       # Check migration status
-dotnet run -- ensure      # Ensure database exists
-dotnet run -- drop        # Drop database (requires confirmation)
+dotnet build
 ```
 
-Connection string can be configured via:
-- `appsettings.json`
-- `DATABASE_URL` environment variable
-- Default: `Host=localhost;Database=umlmm;Username=postgres;Password=postgres`
-
-#### Using with Docker (PostgreSQL)
+### Code Formatting
 
 ```bash
-# Start PostgreSQL
-docker run -d \
-  --name umlmm-postgres \
-  -e POSTGRES_DB=umlmm \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -p 5432:5432 \
-  postgres:16-alpine
-
-# Apply migrations
-cd tools/UMLMM.DbTool
-dotnet run -- migrate
+dotnet format
 ```
 
-### Entity Framework Migrations
-
-To create a new migration:
+### Adding Migrations
 
 ```bash
 cd src/UMLMM.Infrastructure
-dotnet ef migrations add YourMigrationName
+dotnet ef migrations add <MigrationName> --output-dir Data/Migrations
 ```
 
-To apply migrations programmatically:
+## CI/CD
 
-```csharp
-using Microsoft.EntityFrameworkCore;
-using UMLMM.Infrastructure.Persistence;
+GitHub Actions workflow (`.github/workflows/dotnet.yml`) runs on push/PR:
+- Build
+- Run tests (including Testcontainers integration tests)
+- Check code formatting
 
-var options = new DbContextOptionsBuilder<AppDbContext>()
-    .UseNpgsql("your-connection-string")
-    .Options;
+## Future Enhancements
 
-await using var context = new AppDbContext(options);
-await context.Database.MigrateAsync();
-```
+- Additional ingestors (Danbooru, e621, ComfyUI, Ollama)
+- Blazor Server admin UI for browsing and managing data
+- GraphQL API for querying
+- Background job scheduling with Hangfire
+- Advanced search with full-text indexing
+- Model comparison and recommendation features
 
-### Idempotent Upserts
+## License
 
-The schema enforces unique constraints to support idempotent operations:
+[Specify your license here]
 
-- Models: unique on `(source_id, external_id)`
-- Workflows: unique on `(source_id, external_id)`
-- Tags: unique on `(normalized_name, source_id)`
-- Artifacts/Images: sha256 hashing for deduplication
+## Contributing
 
-### Testing
+[Contribution guidelines]
 
-- **Unit Tests**: Validate domain entity properties and behavior
-- **Integration Tests**: Use Testcontainers to test migrations, constraints, and idempotency
-- **Performance Tests**: Verify batch operations (100-1000 records) perform acceptably
-
-### Quality Standards
-
-- ✅ All migrations apply successfully
-- ✅ Unique constraints prevent duplicates
-- ✅ JSONB columns store and retrieve data correctly
-- ✅ Foreign key relationships enforce referential integrity
-- ✅ Batch operations complete in reasonable time
-- ✅ All tests pass in CI
-
-### Next Steps
-
-Phase 3 will implement:
-- Ingestion services for each source (CivitAI, Danbooru, etc.)
-- Background job orchestration
-- Blazor Server admin UI

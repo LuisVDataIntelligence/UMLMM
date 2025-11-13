@@ -1,14 +1,10 @@
-using UMLMM.Domain.Common;
-
 namespace UMLMM.Domain.Entities;
 
-public class Tag : BaseEntity
+public class Tag
 {
-    public int TagId { get; set; }
+    public int Id { get; set; }
     public required string Name { get; set; }
-    public required string NormalizedName { get; set; }
-    public int? SourceId { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    public Source? Source { get; set; }
     public ICollection<ModelTag> ModelTags { get; set; } = new List<ModelTag>();
 }

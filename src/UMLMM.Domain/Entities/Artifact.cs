@@ -1,18 +1,17 @@
-using UMLMM.Domain.Common;
-using UMLMM.Domain.Enums;
-
 namespace UMLMM.Domain.Entities;
 
-public class Artifact : BaseEntity
+public class Artifact
 {
-    public int ArtifactId { get; set; }
-    public int ModelVersionId { get; set; }
-    public ArtifactKind Kind { get; set; }
-    public required string FileName { get; set; }
-    public long SizeBytes { get; set; }
+    public int Id { get; set; }
+    public int VersionId { get; set; }
+    public required string ExternalId { get; set; }
+    public string? FileKind { get; set; }
+    public long? FileSizeBytes { get; set; }
     public string? Sha256 { get; set; }
-    public required string Url { get; set; }
-    public string? Metadata { get; set; }
+    public string? DownloadUrl { get; set; }
+    public string? Raw { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? UpdatedAt { get; set; }
 
-    public ModelVersion ModelVersion { get; set; } = null!;
+    public ModelVersion Version { get; set; } = null!;
 }
