@@ -110,6 +110,44 @@ Edit `src/BlazorFrontend/appsettings.json`:
 }
 ```
 
+## Alternate local data stores (SQLite or JSON file)
+
+You can run ingestors locally with either SQLite or a simple JSON file for lightweight testing.
+
+- To use SQLite (default for most ingestors): ensure your `appsettings.json` in the ingestor project contains a connection string like:
+
+```json
+"ConnectionStrings": {
+  "DefaultConnection": "Data Source=umlmm.e621.db"
+}
+```
+
+- To use a JSON file instead of a database, set the database provider in the ingestor's `appsettings.json`:
+
+```json
+"Database": {
+  "Provider": "json",
+  "FilePath": "umlmm.e621.json"
+}
+```
+
+When the provider is set to `json`, the ingestor will use a file-backed repository implementation that writes and reads JSON from the configured `FilePath`. This is useful for fast local testing without installing a DB engine.
+
+Examples of ingestor appsettings with JSON provider enabled:
+
+- `src/UMLMM.E621Ingestor/appsettings.json`
+- `src/OllamaIngestor/appsettings.json`
+
+To run an ingestor with JSON provider and check the generated file:
+
+```bash
+# Run E621 ingestor (uses appsettings.json provider settings)
+dotnet run --project src/UMLMM.E621Ingestor/UMLMM.E621Ingestor.csproj
+
+# After running, inspect the file
+cat umlmm.e621.json
+```
+
 ## Troubleshooting
 
 ### Build Errors

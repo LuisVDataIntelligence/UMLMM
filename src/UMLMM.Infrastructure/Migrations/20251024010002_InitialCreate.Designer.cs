@@ -13,7 +13,7 @@ namespace UMLMM.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
     [Migration("20251024010002_InitialCreate")]
-    partial class InitialCreate
+        partial class InitialCreate_20251024010002
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

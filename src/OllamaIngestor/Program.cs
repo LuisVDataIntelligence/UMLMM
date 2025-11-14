@@ -25,12 +25,44 @@ try
     // Add DbContext
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
         ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-    
-    builder.Services.AddDbContext<UmlmmDbContext>(options =>
-        options.UseNpgsql(connectionString));
 
-    // Add repositories
-    builder.Services.AddScoped<ModelRepository>();
+    // Configure DbContext with provider detection (Postgres or Sqlite) - skip if using json provider
+    var providerDb = builder.Configuration.GetValue<string>("Database:Provider")
+                      ?? builder.Configuration.GetValue<string>("Provider");
+
+    if (providerDb == null || !providerDb.Equals("json", StringComparison.OrdinalIgnoreCase))
+    {
+        // Configure DbContext with provider detection
+        builder.Services.AddDbContext<UmlmmDbContext>(options =>
+        {
+            var provider = builder.Configuration.GetValue<string>("Database:Provider")
+                           ?? builder.Configuration.GetValue<string>("Provider")
+                           ?? (connectionString.IndexOf("data source=", StringComparison.OrdinalIgnoreCase) >= 0 || connectionString.IndexOf(".db", StringComparison.OrdinalIgnoreCase) >= 0 ? "sqlite" : "npgsql");
+
+            if (provider.Equals("sqlite", StringComparison.OrdinalIgnoreCase))
+            {
+                options.UseSqlite(connectionString);
+            }
+            else
+            {
+                options.UseNpgsql(connectionString);
+            }
+        });
+    }
+
+    // Add repositories (support json file store for tests)
+    var provider = builder.Configuration.GetValue<string>("Database:Provider")
+                   ?? builder.Configuration.GetValue<string>("Provider");
+
+    if (provider != null && provider.Equals("json", StringComparison.OrdinalIgnoreCase))
+    {
+        var jsonPath = builder.Configuration.GetValue<string>("Database:FilePath") ?? "umlmm.ollama.json";
+        builder.Services.AddScoped<IModelRepository>(_ => new JsonModelRepository(jsonPath, _.GetRequiredService<ILogger<JsonModelRepository>>()));
+    }
+    else
+    {
+        builder.Services.AddScoped<IModelRepository, ModelRepository>();
+    }
 
     // Add services
     builder.Services.AddSingleton<IOllamaClient, OllamaCliClient>();

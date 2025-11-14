@@ -29,8 +29,27 @@ try
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
         ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
-    builder.Services.AddDbContext<UmlmmDbContext>(options =>
-        options.UseNpgsql(connectionString));
+    // Configure DbContext with provider detection (Postgres, Sqlite) - if provider is 'json' we'll skip DbContext
+    var provider = builder.Configuration.GetValue<string>("Database:Provider")
+                   ?? builder.Configuration.GetValue<string>("Provider")
+                   ?? (connectionString.IndexOf("data source=", StringComparison.OrdinalIgnoreCase) >= 0 || connectionString.IndexOf(".db", StringComparison.OrdinalIgnoreCase) >= 0 ? "sqlite" : "npgsql");
+
+    if (!provider.Equals("json", StringComparison.OrdinalIgnoreCase))
+    {
+        builder.Services.AddDbContext<UmlmmDbContext>(options =>
+    {
+            var conn = builder.Configuration.GetConnectionString("DefaultConnection")
+                   ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found");
+        if (provider.Equals("sqlite", StringComparison.OrdinalIgnoreCase))
+        {
+            options.UseSqlite(conn);
+        }
+        else
+        {
+            options.UseNpgsql(conn);
+        }
+    });
+    }
 
     // Configure HttpClient with Polly resilience
     var e621Options = builder.Configuration
@@ -47,7 +66,18 @@ try
     .AddPolicyHandler(GetCircuitBreakerPolicy());
 
     // Register services
-    builder.Services.AddScoped<IPostRepository, PostRepository>();
+    var repoProvider = builder.Configuration.GetValue<string>("Database:Provider")
+                   ?? builder.Configuration.GetValue<string>("Provider");
+
+    if (repoProvider != null && repoProvider.Equals("json", StringComparison.OrdinalIgnoreCase))
+    {
+        var jsonPath = builder.Configuration.GetValue<string>("Database:FilePath") ?? "umlmm.e621.json";
+        builder.Services.AddScoped<IPostRepository>(_ => new JsonPostRepository(jsonPath, _.GetRequiredService<ILogger<JsonPostRepository>>()));
+    }
+    else
+    {
+        builder.Services.AddScoped<IPostRepository, PostRepository>();
+    }
     builder.Services.AddScoped<IE621Mapper, E621Mapper>();
     builder.Services.AddScoped<IE621IngestorService, E621IngestorService>();
 

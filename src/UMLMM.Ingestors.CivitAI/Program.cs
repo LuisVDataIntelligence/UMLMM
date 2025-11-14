@@ -92,12 +92,24 @@ class Program
             {
                 var configuration = context.Configuration;
 
-                // Configure DbContext
+                // Configure DbContext: support Npgsql (Postgres) or Sqlite based on connection string or Database:Provider
                 services.AddDbContext<UmlmmDbContext>(options =>
                 {
                     var connectionString = configuration.GetConnectionString("DefaultConnection")
                         ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found");
-                    options.UseNpgsql(connectionString);
+
+                    var provider = configuration.GetValue<string>("Database:Provider")
+                                   ?? configuration.GetValue<string>("Provider")
+                                   ?? (connectionString.IndexOf("data source=", StringComparison.OrdinalIgnoreCase) >= 0 || connectionString.IndexOf(".db", StringComparison.OrdinalIgnoreCase) >= 0 ? "sqlite" : "npgsql");
+
+                    if (provider.Equals("sqlite", StringComparison.OrdinalIgnoreCase))
+                    {
+                        options.UseSqlite(connectionString);
+                    }
+                    else
+                    {
+                        options.UseNpgsql(connectionString);
+                    }
                 });
 
                 // Configure HttpClient for CivitAI API

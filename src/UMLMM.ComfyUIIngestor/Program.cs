@@ -24,9 +24,22 @@ try
     // Configure DbContext
     builder.Services.AddDbContext<UmlmmDbContext>(options =>
     {
-        var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-        options.UseNpgsql(connectionString);
+            // Configure DbContext with provider detection (Postgres or Sqlite)
+            var conn = builder.Configuration.GetConnectionString("DefaultConnection")
+                       ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found");
+
+            var provider = builder.Configuration.GetValue<string>("Database:Provider")
+                           ?? builder.Configuration.GetValue<string>("Provider")
+                           ?? (conn.IndexOf("data source=", StringComparison.OrdinalIgnoreCase) >= 0 || conn.IndexOf(".db", StringComparison.OrdinalIgnoreCase) >= 0 ? "sqlite" : "npgsql");
+
+            if (provider.Equals("sqlite", StringComparison.OrdinalIgnoreCase))
+            {
+                options.UseSqlite(conn);
+            }
+            else
+            {
+                options.UseNpgsql(conn);
+            }
     });
 
     // Register services

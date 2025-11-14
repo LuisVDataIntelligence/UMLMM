@@ -4,7 +4,7 @@ using UMLMM.Infrastructure.Data;
 
 namespace UMLMM.Infrastructure.Repositories;
 
-public class ModelRepository
+public class ModelRepository : IModelRepository
 {
     private readonly UmlmmDbContext _context;
 

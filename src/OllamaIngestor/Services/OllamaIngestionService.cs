@@ -7,12 +7,12 @@ namespace OllamaIngestor.Services;
 public class OllamaIngestionService
 {
     private readonly IOllamaClient _ollamaClient;
-    private readonly ModelRepository _modelRepository;
+    private readonly IModelRepository _modelRepository;
     private readonly ILogger<OllamaIngestionService> _logger;
 
     public OllamaIngestionService(
         IOllamaClient ollamaClient,
-        ModelRepository modelRepository,
+        IModelRepository modelRepository,
         ILogger<OllamaIngestionService> logger)
     {
         _ollamaClient = ollamaClient;

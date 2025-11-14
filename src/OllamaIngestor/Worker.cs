@@ -57,7 +57,7 @@ public class Worker : BackgroundService
     private async Task PerformIngestionAsync(CancellationToken cancellationToken)
     {
         using var scope = _serviceProvider.CreateScope();
-        var modelRepository = scope.ServiceProvider.GetRequiredService<ModelRepository>();
+        var modelRepository = scope.ServiceProvider.GetRequiredService<IModelRepository>();
         var ingestionService = scope.ServiceProvider.GetRequiredService<OllamaIngestionService>();
 
         var runId = Guid.NewGuid();
